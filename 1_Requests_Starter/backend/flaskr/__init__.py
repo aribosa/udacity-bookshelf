@@ -18,7 +18,7 @@ BOOKS_PER_SHELF = 8
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__)
-    setup_db(app)
+    db = setup_db(app)
     CORS(app)
 
     # CORS Headers
@@ -32,24 +32,46 @@ def create_app(test_config=None):
         )
         return response
 
-    # @TODO: Write a route that retrivies all books, paginated.
-    #         You can use the constant above to paginate by eight books.
-    #         If you decide to change the number of books per page,
-    #         update the frontend to handle additional books in the styling and pagination
-    #         Response body keys: 'success', 'books' and 'total_books'
-    # TEST: When completed, the webpage will display books including title, author, and rating shown as stars
 
-    # @TODO: Write a route that will update a single book's rating.
-    #         It should only be able to update the rating, not the entire representation
-    #         and should follow API design principles regarding method and route.
-    #         Response body keys: 'success'
-    # TEST: When completed, you will be able to click on stars to update a book's rating and it will persist after refresh
+    def paginate_results(selection, request, items_per_page=BOOKS_PER_SHELF):
+        page = request.args.get('page', default=1, type=int)
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+        return selection[start:end] 
 
-    # @TODO: Write a route that will delete a single book.
-    #        Response body keys: 'success', 'deleted'(id of deleted book), 'books' and 'total_books'
-    #        Response body keys: 'success', 'books' and 'total_books'
+    @app.route('/books', methods=['GET'])
+    def get_books():
 
-    # TEST: When completed, you will be able to delete a single book by clicking on the trashcan.
+        books = Book.query.order_by(Book.id).all()
+        books = paginate_results([book.format() for book in books], request)
+
+        if books:
+            return jsonify({
+                'success': True,
+                'books': books,
+                'results': len(books),
+                'total_books': len(Book.query.all())
+            })
+        
+        else:
+            abort(404)
+
+
+    @app.route('/books/<int:book_id>', methods=['GET', 'POST', 'DELETE'])
+    def book(book_id):
+        if request.method == 'GET':
+            return jsonify(Book.query.get(book_id).format())
+            
+
+        if request.method == 'DELETE':
+            to_delete = Book.query.get(book_id)
+            if to_delete:
+                to_delete.delete()
+                db.session.commit()
+                return jsonify({'success': True}), 200
+            else:
+                return jsonify({'success': False}), 404
+
 
     # @TODO: Write a route that create a new book.
     #        Response body keys: 'success', 'created'(id of created book), 'books' and 'total_books'
